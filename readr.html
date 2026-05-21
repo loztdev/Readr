@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Readr</title>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --accent:   #58a6ff;
+      --accent2:  #3fb950;
+      --muted:    #8b949e;
+      --text:     #e6edf3;
+      --danger:   #f85149;
+      --tag-bg:   #1f2937;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--accent);
+    }
+
+    #breadcrumb {
+      flex: 1;
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #breadcrumb span { color: var(--muted); }
+    #breadcrumb a {
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    #breadcrumb a:hover { text-decoration: underline; }
+
+    #back-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: none;
+      white-space: nowrap;
+    }
+    #back-btn:hover { background: var(--border); }
+
+    .search-bar {
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .search-bar input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-bar input:focus { border-color: var(--accent); }
+    .search-bar input::placeholder { color: var(--muted); }
+
+    .search-bar button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .search-bar button:hover { opacity: 0.85; }
+
+    #status {
+      text-align: center;
+      padding: 40px 16px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    #status.error { color: var(--danger); }
+
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── REPO GRID ── */
+    #repo-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 0 16px 24px;
+    }
+
+    .repo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .repo-card:active { transform: scale(0.98); }
+    .repo-card:hover { border-color: var(--accent); }
+
+    .repo-name {
+      font-weight: 700;
+      color: var(--accent);
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .repo-desc {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .repo-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .tag {
+      background: var(--tag-bg);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.75rem;
+    }
+
+    .lang-dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    /* ── FILE TREE ── */
+    #file-list {
+      padding: 0 16px 24px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .file-item:hover { border-color: var(--accent); }
+    .file-item:active { opacity: 0.8; }
+
+    .file-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .file-name { flex: 1; font-size: 0.95rem; word-break: break-all; }
+    .file-size { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+
+    /* ── FILE VIEWER ── */
+    #file-viewer {
+      padding: 0 16px 24px;
+    }
+
+    .file-meta-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .file-meta-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.78rem;
+    }
+
+    #file-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 16px;
+      font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    #file-content.image-view {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      font-family: inherit;
+    }
+
+    #file-content.image-view img {
+      max-width: 100%;
+      border-radius: 6px;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+
+    /* rate limit warning */
+    .rate-warn {
+      background: #2d1f00;
+      border: 1px solid #7d5a00;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      color: #e6a817;
+      margin: 0 16px 12px;
+    }
+
+    /* ── TOKEN PANEL ── */
+    #settings-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    #settings-btn:hover { border-color: var(--accent); color: var(--text); }
+    #settings-btn.active { border-color: var(--accent); color: var(--accent); }
+
+    #token-panel {
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      gap: 10px;
+      flex-direction: column;
+    }
+    #token-panel.open { display: flex; }
+
+    .token-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .token-input-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+    }
+
+    #token-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 40px 10px 14px;
+      font-size: 0.9rem;
+      font-family: 'Menlo', 'Consolas', monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #token-input:focus { border-color: var(--accent); }
+    #token-input::placeholder { color: var(--muted); font-family: inherit; }
+
+    #token-toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      color: var(--muted);
+      padding: 4px;
+      line-height: 1;
+    }
+    #token-toggle:hover { color: var(--text); }
+
+    .token-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn-save {
+      background: var(--accent2);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-save:hover { opacity: 0.85; }
+
+    .btn-clear {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-clear:hover { border-color: var(--danger); color: var(--danger); }
+
+    #auth-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #auth-status.authed { color: var(--accent2); }
+    #save-confirm {
+      color: var(--accent2);
+      font-size: 0.8rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #save-confirm.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Readr</h1>
+  <div id="breadcrumb"></div>
+  <button id="back-btn" onclick="goBack()">← Back</button>
+  <button id="settings-btn" onclick="toggleSettings()" title="Token settings">⚙️</button>
+</header>
+
+<div class="search-bar">
+  <input id="user-input" type="text" placeholder="GitHub username" value="loztdev" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
+  <button onclick="loadRepos()">Go</button>
+  <button onclick="loadMyRepos()" id="my-repos-btn" title="Load your private repos (requires token)" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:0.85rem;cursor:pointer;white-space:nowrap;">Me</button>
+</div>
+
+<div id="token-panel">
+  <div class="token-row">
+    <div class="token-input-wrap">
+      <input id="token-input" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
+      <button id="token-toggle" onclick="toggleTokenVis()" title="Show/hide token">👁</button>
+    </div>
+    <div class="token-actions">
+      <button class="btn-save" onclick="saveToken()">Save</button>
+      <button class="btn-clear" onclick="clearToken()">Clear</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div id="auth-status">🔓 Public only · 60 req/hr</div>
+    <span id="save-confirm">✅ Saved!</span>
+  </div>
+</div>
+
+<div id="rate-warn-box"></div>
+<div id="status"></div>
+<div id="repo-grid"></div>
+<div id="file-list"></div>
+<div id="file-viewer"></div>
+
+<script>
+  const API = 'https://api.github.com';
+  const stack = [];
+
+  let currentUser = '';
+  let githubToken = localStorage.getItem('readr_token') || '';
+
+  const $ = id => document.getElementById(id);
+
+  // ── TOKEN UI ───────────────────────────────────────────────────────────────
+  function toggleSettings() {
+    const panel = $('token-panel');
+    const btn = $('settings-btn');
+    const isOpen = panel.classList.toggle('open');
+    btn.classList.toggle('active', isOpen);
+    if (isOpen && githubToken) $('token-input').value = githubToken;
+  }
+
+  function toggleTokenVis() {
+    const inp = $('token-input');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  function saveToken() {
+    const val = $('token-input').value.trim();
+    githubToken = val;
+    if (val) localStorage.setItem('readr_token', val);
+    else localStorage.removeItem('readr_token');
+    updateAuthStatus();
+    const conf = $('save-confirm');
+    conf.classList.add('show');
+    setTimeout(() => conf.classList.remove('show'), 2000);
+  }
+
+  function clearToken() {
+    githubToken = '';
+    localStorage.removeItem('readr_token');
+    $('token-input').value = '';
+    updateAuthStatus();
+  }
+
+  function updateAuthStatus() {
+    const el = $('auth-status');
+    if (githubToken) {
+      el.textContent = '🔑 Authenticated · 5000 req/hr';
+      el.className = 'authed';
+    } else {
+      el.textContent = '🔓 Public only · 60 req/hr';
+      el.className = '';
+    }
+  }
+
+  const LANG_COLORS = {
+    JavaScript:'#f1e05a', TypeScript:'#3178c6', Python:'#3572A5',
+    HTML:'#e34c26', CSS:'#563d7c', Ruby:'#701516', Go:'#00ADD8',
+    Rust:'#dea584', Java:'#b07219', 'C++':'#f34b7d', C:'#555',
+    Swift:'#f05138', Kotlin:'#A97BFF', Shell:'#89e051', PHP:'#4F5D95',
+    Markdown:'#083fa1', Vue:'#41b883', Dart:'#00B4AB',
+  };
+
+  function fmtSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  async function ghFetch(url) {
+    const headers = { Accept: 'application/vnd.github.v3+json' };
+    if (githubToken) headers['Authorization'] = `token ${githubToken}`;
+    const res = await fetch(url, { headers });
+    const rem = res.headers.get('x-ratelimit-remaining');
+    const lim = res.headers.get('x-ratelimit-limit');
+    if (rem !== null && parseInt(rem) < 10 && !githubToken) {
+      $('rate-warn-box').innerHTML = `<div class="rate-warn">⚠️ Rate limit low — ${rem}/${lim} left. Hit ⚙️ to add a token and unlock 5000/hr.</div>`;
+    }
+    if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
+    return res.json();
+  }
+
+  function setStatus(html, isError = false) {
+    $('status').innerHTML = html;
+    $('status').className = isError ? 'error' : '';
+  }
+
+  function clearAll() {
+    $('repo-grid').innerHTML = '';
+    $('file-list').innerHTML = '';
+    $('file-viewer').innerHTML = '';
+    $('status').innerHTML = '';
+    $('rate-warn-box').innerHTML = '';
+  }
+
+  function updateNav() {
+    const top = stack[stack.length - 1];
+    const backBtn = $('back-btn');
+    backBtn.style.display = stack.length > 1 ? 'block' : 'none';
+
+    // build breadcrumb
+    let crumb = '';
+    stack.forEach((entry, i) => {
+      const isLast = i === stack.length - 1;
+      if (entry.type === 'repos') {
+        crumb += isLast ? `<span>${entry.user}</span>` : `<a onclick="jumpTo(${i})">${entry.user}</a>`;
+      } else if (entry.type === 'tree') {
+        const label = entry.path || entry.repo;
+        crumb += ' <span style="color:var(--border)">›</span> ' + (isLast ? `<span>${label}</span>` : `<a onclick="jumpTo(${i})">${label}</a>`);
+      } else if (entry.type === 'file') {
+        crumb += ' <span style="color:var(--border)">›</span> ' + `<span>${entry.name}</span>`;
+      }
+    });
+    $('breadcrumb').innerHTML = crumb;
+  }
+
+  function jumpTo(idx) {
+    const entry = stack[idx];
+    stack.splice(idx + 1);
+    clearAll();
+    if (entry.type === 'repos') renderRepos(entry.data, entry.user);
+    else if (entry.type === 'tree') renderTree(entry.data, entry.repo, entry.path, entry.sha, entry.user);
+    updateNav();
+  }
+
+  function goBack() {
+    if (stack.length <= 1) return;
+    stack.pop();
+    const entry = stack[stack.length - 1];
+    clearAll();
+    if (entry.type === 'repos') renderRepos(entry.data, entry.user);
+    else if (entry.type === 'tree') renderTree(entry.data, entry.repo, entry.path, entry.sha, entry.user);
+    updateNav();
+  }
+
+  // ── REPOS ──────────────────────────────────────────────────────────────────
+  async function loadRepos() {
+    const user = $('user-input').value.trim();
+    if (!user) return;
+    currentUser = user;
+    clearAll();
+    stack.length = 0;
+    setStatus('<div class="spinner"></div>Loading repos…');
+
+    try {
+      const repos = await ghFetch(`${API}/users/${user}/repos?per_page=100&sort=updated`);
+      setStatus('');
+      stack.push({ type: 'repos', user, data: repos });
+      renderRepos(repos, user);
+      updateNav();
+    } catch (e) {
+      setStatus('❌ ' + e.message, true);
+    }
+  }
+
+  async function loadMyRepos() {
+    if (!githubToken) {
+      $('token-panel').classList.add('open');
+      $('settings-btn').classList.add('active');
+      $('token-input').focus();
+      setStatus('🔑 Add a token first — hit ⚙️ or use the panel above.');
+      return;
+    }
+    const user = $('user-input').value.trim() || 'me';
+    clearAll();
+    stack.length = 0;
+    setStatus('<div class="spinner"></div>Loading your repos…');
+    try {
+      const repos = await ghFetch(`${API}/user/repos?per_page=100&sort=updated&affiliation=owner`);
+      setStatus('');
+      const label = repos[0]?.owner?.login || user;
+      stack.push({ type: 'repos', user: label, data: repos });
+      renderRepos(repos, label + ' (all)');
+      updateNav();
+    } catch (e) {
+      setStatus('❌ ' + e.message, true);
+    }
+  }
+
+  function renderRepos(repos, user) {
+    if (!repos.length) { setStatus('No public repos found.'); return; }
+    const grid = $('repo-grid');
+    grid.innerHTML = `<div class="section-label">${repos.length} repositories · ${user}</div>`;
+    repos.forEach(r => {
+      const dot = r.language && LANG_COLORS[r.language]
+        ? `<span class="lang-dot" style="background:${LANG_COLORS[r.language]}"></span>` : '';
+      const card = document.createElement('div');
+      card.className = 'repo-card';
+      card.innerHTML = `
+        <div class="repo-name">📦 ${r.name}</div>
+        ${r.description ? `<div class="repo-desc">${r.description}</div>` : ''}
+        <div class="repo-meta">
+          ${r.language ? `<span>${dot}${r.language}</span>` : ''}
+          ${r.stargazers_count ? `<span>⭐ ${r.stargazers_count}</span>` : ''}
+          ${r.forks_count ? `<span>🍴 ${r.forks_count}</span>` : ''}
+          ${r.private ? `<span class="tag">private</span>` : '<span class="tag">public</span>'}
+        </div>`;
+      card.onclick = () => openRepo(r.name, r.default_branch || 'main', user);
+      grid.appendChild(card);
+    });
+  }
+
+  // ── TREE ───────────────────────────────────────────────────────────────────
+  async function openRepo(repo, branch, user) {
+    clearAll();
+    setStatus('<div class="spinner"></div>Loading files…');
+    try {
+      const data = await ghFetch(`${API}/repos/${user}/${repo}/git/trees/${branch}?recursive=1`);
+      // filter to top-level only first
+      const topLevel = data.tree.filter(i => !i.path.includes('/'));
+      stack.push({ type: 'tree', repo, path: '', sha: branch, user, data: topLevel, fullTree: data.tree });
+      setStatus('');
+      renderTree(topLevel, repo, '', branch, user, data.tree);
+      updateNav();
+    } catch (e) {
+      setStatus('❌ ' + e.message, true);
+    }
+  }
+
+  function renderTree(items, repo, path, sha, user, fullTree) {
+    const list = $('file-list');
+    const dirs = items.filter(i => i.type === 'tree').sort((a, b) => a.path.localeCompare(b.path));
+    const files = items.filter(i => i.type === 'blob').sort((a, b) => a.path.localeCompare(b.path));
+    const sorted = [...dirs, ...files];
+
+    list.innerHTML = `<div class="section-label">${path ? path : repo}</div>`;
+
+    sorted.forEach(item => {
+      const name = item.path.split('/').pop();
+      const isDir = item.type === 'tree';
+      const el = document.createElement('div');
+      el.className = 'file-item';
+      el.innerHTML = `
+        <span class="file-icon">${isDir ? '📁' : fileIcon(name)}</span>
+        <span class="file-name">${name}</span>
+        ${!isDir && item.size ? `<span class="file-size">${fmtSize(item.size)}</span>` : ''}
+      `;
+      if (isDir) {
+        el.onclick = () => drillDir(item, repo, sha, user, fullTree || []);
+      } else {
+        el.onclick = () => openFile(item, name, repo, user);
+      }
+      list.appendChild(el);
+    });
+  }
+
+  function drillDir(dirItem, repo, sha, user, fullTree) {
+    const prefix = dirItem.path + '/';
+    const children = fullTree
+      .filter(i => i.path.startsWith(prefix) && !i.path.slice(prefix.length).includes('/'))
+      .map(i => ({ ...i, path: i.path.slice(prefix.length) }));
+
+    // keep full paths for nested drills
+    const childrenWithFullPath = fullTree
+      .filter(i => i.path.startsWith(prefix) && !i.path.slice(prefix.length).includes('/'));
+
+    clearAll();
+    stack.push({ type: 'tree', repo, path: dirItem.path, sha, user, data: childrenWithFullPath, fullTree });
+    renderTree(childrenWithFullPath.map(i => ({ ...i, path: i.path.slice(prefix.length) })), repo, dirItem.path, sha, user, fullTree);
+    updateNav();
+  }
+
+  // ── FILE VIEWER ────────────────────────────────────────────────────────────
+  async function openFile(item, name, repo, user) {
+    clearAll();
+    setStatus('<div class="spinner"></div>Loading file…');
+
+    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/${stack.find(s => s.type === 'tree')?.sha || 'main'}/${item.path || name}`;
+
+    try {
+      stack.push({ type: 'file', name, item, repo, user });
+      updateNav();
+
+      const ext = name.split('.').pop().toLowerCase();
+      const isImage = ['png','jpg','jpeg','gif','svg','webp','ico','bmp'].includes(ext);
+
+      if (isImage) {
+        setStatus('');
+        $('file-viewer').innerHTML = `
+          <div class="file-meta-bar">
+            <span>${name}</span>
+            <a href="${rawUrl}" target="_blank">Raw ↗</a>
+          </div>
+          <div id="file-content" class="image-view"><img src="${rawUrl}" alt="${name}" /></div>`;
+        return;
+      }
+
+      const res = await fetch(rawUrl);
+      if (!res.ok) throw new Error('Could not load file content');
+      const text = await res.text();
+      setStatus('');
+
+      $('file-viewer').innerHTML = `
+        <div class="file-meta-bar">
+          <span>${name} · ${fmtSize(item.size)}</span>
+          <a href="${rawUrl}" target="_blank">Raw ↗</a>
+        </div>
+        <pre id="file-content">${escapeHtml(text)}</pre>`;
+    } catch(e) {
+      setStatus('❌ ' + e.message, true);
+    }
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function fileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    const map = {
+      js:'📜', ts:'📘', py:'🐍', html:'🌐', css:'🎨', md:'📝', json:'📋',
+      yml:'⚙️', yaml:'⚙️', sh:'🖥️', rb:'💎', go:'🐹', rs:'🦀', java:'☕',
+      php:'🐘', swift:'🦅', kt:'🎯', dart:'🎯', vue:'💚', svg:'🖼️',
+      png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', pdf:'📄', zip:'📦',
+      env:'🔑', gitignore:'👻', lock:'🔒',
+    };
+    return map[ext] || (name.includes('.') ? '📄' : '📄');
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    $('user-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadRepos(); });
+    $('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveToken(); });
+    updateAuthStatus();
+    loadRepos();
+  });
+</script>
+</body>
+</html>

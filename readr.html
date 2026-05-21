@@ -683,16 +683,11 @@
   function drillDir(dirItem, repo, sha, user, fullTree) {
     const prefix = dirItem.path + '/';
     const children = fullTree
-      .filter(i => i.path.startsWith(prefix) && !i.path.slice(prefix.length).includes('/'))
-      .map(i => ({ ...i, path: i.path.slice(prefix.length) }));
-
-    // keep full paths for nested drills
-    const childrenWithFullPath = fullTree
       .filter(i => i.path.startsWith(prefix) && !i.path.slice(prefix.length).includes('/'));
 
     clearAll();
-    stack.push({ type: 'tree', repo, path: dirItem.path, sha, user, data: childrenWithFullPath, fullTree });
-    renderTree(childrenWithFullPath.map(i => ({ ...i, path: i.path.slice(prefix.length) })), repo, dirItem.path, sha, user, fullTree);
+    stack.push({ type: 'tree', repo, path: dirItem.path, sha, user, data: children, fullTree });
+    renderTree(children, repo, dirItem.path, sha, user, fullTree);
     updateNav();
   }
 
@@ -701,7 +696,9 @@
     clearAll();
     setStatus('<div class="spinner"></div>Loading file…');
 
-    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/${stack.find(s => s.type === 'tree')?.sha || 'main'}/${item.path || name}`;
+    const branch = stack.find(s => s.type === 'tree')?.sha || 'main';
+    const fullPath = item.path;
+    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${fullPath}`;
 
     try {
       stack.push({ type: 'file', name, item, repo, user });
@@ -721,9 +718,15 @@
         return;
       }
 
-      const res = await fetch(rawUrl);
-      if (!res.ok) throw new Error('Could not load file content');
-      const text = await res.text();
+      const data = await ghFetch(`${API}/repos/${user}/${repo}/contents/${fullPath}?ref=${branch}`);
+      let text;
+      if (data.encoding === 'base64') {
+        text = atob(data.content.replace(/\n/g, ''));
+      } else {
+        const res = await fetch(data.download_url);
+        if (!res.ok) throw new Error('Could not load file content');
+        text = await res.text();
+      }
       setStatus('');
 
       $('file-viewer').innerHTML = `

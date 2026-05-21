@@ -281,6 +281,121 @@
       color: #e6a817;
       margin: 0 16px 12px;
     }
+
+    /* ── TOKEN PANEL ── */
+    #settings-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    #settings-btn:hover { border-color: var(--accent); color: var(--text); }
+    #settings-btn.active { border-color: var(--accent); color: var(--accent); }
+
+    #token-panel {
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      gap: 10px;
+      flex-direction: column;
+    }
+    #token-panel.open { display: flex; }
+
+    .token-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .token-input-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+    }
+
+    #token-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 40px 10px 14px;
+      font-size: 0.9rem;
+      font-family: 'Menlo', 'Consolas', monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #token-input:focus { border-color: var(--accent); }
+    #token-input::placeholder { color: var(--muted); font-family: inherit; }
+
+    #token-toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      color: var(--muted);
+      padding: 4px;
+      line-height: 1;
+    }
+    #token-toggle:hover { color: var(--text); }
+
+    .token-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn-save {
+      background: var(--accent2);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-save:hover { opacity: 0.85; }
+
+    .btn-clear {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-clear:hover { border-color: var(--danger); color: var(--danger); }
+
+    #auth-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #auth-status.authed { color: var(--accent2); }
+    #save-confirm {
+      color: var(--accent2);
+      font-size: 0.8rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #save-confirm.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -289,11 +404,30 @@
   <h1>Readr</h1>
   <div id="breadcrumb"></div>
   <button id="back-btn" onclick="goBack()">← Back</button>
+  <button id="settings-btn" onclick="toggleSettings()" title="Token settings">⚙️</button>
 </header>
 
 <div class="search-bar">
   <input id="user-input" type="text" placeholder="GitHub username" value="loztdev" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
   <button onclick="loadRepos()">Go</button>
+  <button onclick="loadMyRepos()" id="my-repos-btn" title="Load your private repos (requires token)" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:0.85rem;cursor:pointer;white-space:nowrap;">Me</button>
+</div>
+
+<div id="token-panel">
+  <div class="token-row">
+    <div class="token-input-wrap">
+      <input id="token-input" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
+      <button id="token-toggle" onclick="toggleTokenVis()" title="Show/hide token">👁</button>
+    </div>
+    <div class="token-actions">
+      <button class="btn-save" onclick="saveToken()">Save</button>
+      <button class="btn-clear" onclick="clearToken()">Clear</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div id="auth-status">🔓 Public only · 60 req/hr</div>
+    <span id="save-confirm">✅ Saved!</span>
+  </div>
 </div>
 
 <div id="rate-warn-box"></div>
@@ -304,12 +438,55 @@
 
 <script>
   const API = 'https://api.github.com';
-  // nav stack: each entry is { type: 'repos'|'tree'|'file', data: ... }
   const stack = [];
 
   let currentUser = '';
+  let githubToken = localStorage.getItem('readr_token') || '';
 
   const $ = id => document.getElementById(id);
+
+  // ── TOKEN UI ───────────────────────────────────────────────────────────────
+  function toggleSettings() {
+    const panel = $('token-panel');
+    const btn = $('settings-btn');
+    const isOpen = panel.classList.toggle('open');
+    btn.classList.toggle('active', isOpen);
+    if (isOpen && githubToken) $('token-input').value = githubToken;
+  }
+
+  function toggleTokenVis() {
+    const inp = $('token-input');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  function saveToken() {
+    const val = $('token-input').value.trim();
+    githubToken = val;
+    if (val) localStorage.setItem('readr_token', val);
+    else localStorage.removeItem('readr_token');
+    updateAuthStatus();
+    const conf = $('save-confirm');
+    conf.classList.add('show');
+    setTimeout(() => conf.classList.remove('show'), 2000);
+  }
+
+  function clearToken() {
+    githubToken = '';
+    localStorage.removeItem('readr_token');
+    $('token-input').value = '';
+    updateAuthStatus();
+  }
+
+  function updateAuthStatus() {
+    const el = $('auth-status');
+    if (githubToken) {
+      el.textContent = '🔑 Authenticated · 5000 req/hr';
+      el.className = 'authed';
+    } else {
+      el.textContent = '🔓 Public only · 60 req/hr';
+      el.className = '';
+    }
+  }
 
   const LANG_COLORS = {
     JavaScript:'#f1e05a', TypeScript:'#3178c6', Python:'#3572A5',
@@ -327,12 +504,13 @@
   }
 
   async function ghFetch(url) {
-    const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } });
-    // surface rate limit warnings
+    const headers = { Accept: 'application/vnd.github.v3+json' };
+    if (githubToken) headers['Authorization'] = `token ${githubToken}`;
+    const res = await fetch(url, { headers });
     const rem = res.headers.get('x-ratelimit-remaining');
     const lim = res.headers.get('x-ratelimit-limit');
-    if (rem !== null && parseInt(rem) < 10) {
-      $('rate-warn-box').innerHTML = `<div class="rate-warn">⚠️ GitHub rate limit low — ${rem}/${lim} requests left. Add a token to unlock 5000/hr.</div>`;
+    if (rem !== null && parseInt(rem) < 10 && !githubToken) {
+      $('rate-warn-box').innerHTML = `<div class="rate-warn">⚠️ Rate limit low — ${rem}/${lim} left. Hit ⚙️ to add a token and unlock 5000/hr.</div>`;
     }
     if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
     return res.json();
@@ -405,6 +583,30 @@
       setStatus('');
       stack.push({ type: 'repos', user, data: repos });
       renderRepos(repos, user);
+      updateNav();
+    } catch (e) {
+      setStatus('❌ ' + e.message, true);
+    }
+  }
+
+  async function loadMyRepos() {
+    if (!githubToken) {
+      $('token-panel').classList.add('open');
+      $('settings-btn').classList.add('active');
+      $('token-input').focus();
+      setStatus('🔑 Add a token first — hit ⚙️ or use the panel above.');
+      return;
+    }
+    const user = $('user-input').value.trim() || 'me';
+    clearAll();
+    stack.length = 0;
+    setStatus('<div class="spinner"></div>Loading your repos…');
+    try {
+      const repos = await ghFetch(`${API}/user/repos?per_page=100&sort=updated&affiliation=owner`);
+      setStatus('');
+      const label = repos[0]?.owner?.login || user;
+      stack.push({ type: 'repos', user: label, data: repos });
+      renderRepos(repos, label + ' (all)');
       updateNav();
     } catch (e) {
       setStatus('❌ ' + e.message, true);
@@ -551,9 +753,10 @@
     return map[ext] || (name.includes('.') ? '📄' : '📄');
   }
 
-  // kick off with default user on load
   window.addEventListener('DOMContentLoaded', () => {
     $('user-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadRepos(); });
+    $('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveToken(); });
+    updateAuthStatus();
     loadRepos();
   });
 </script>

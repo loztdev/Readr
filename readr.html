@@ -698,7 +698,8 @@
 
     const branch = stack.find(s => s.type === 'tree')?.sha || 'main';
     const fullPath = item.path;
-    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${fullPath}`;
+    const encodedPath = fullPath.split('/').map(encodeURIComponent).join('/');
+    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodedPath}`;
 
     try {
       stack.push({ type: 'file', name, item, repo, user });
@@ -718,7 +719,7 @@
         return;
       }
 
-      const data = await ghFetch(`${API}/repos/${user}/${repo}/contents/${fullPath}?ref=${branch}`);
+      const data = await ghFetch(`${API}/repos/${user}/${repo}/contents/${encodedPath}?ref=${branch}`);
       let text;
       if (data.encoding === 'base64') {
         text = atob(data.content.replace(/\n/g, ''));
